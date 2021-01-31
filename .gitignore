@@ -1,0 +1,6 @@
+# Ignore Pyenv and VSCode directories
+.venv/
+.vscode/
+
+# Ignore configuration file
+config/
