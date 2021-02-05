@@ -3,35 +3,38 @@
 from bs4 import BeautifulSoup
 from bs4 import SoupStrainer
 from twilio.rest import Client
+from datetime import datetime
 import random
-import re
 import requests
 import time
 import yaml
 
 start_time = time.perf_counter()
+print("Started vol_scraper.py")
+
 # Crawl volunteer website 
-URL = "https://www.voly.org/opportunity/view.html?id=62211"
+URL = "https://www.voly.org/opportunity/volunteer.html?id=62211"
 req = requests.get(URL)
-only_divs = SoupStrainer("div")
-soup = BeautifulSoup(req.content, 'lxml', parse_only=only_divs)
-todays_needs = soup.find_all(class_="action-spacing")
+cal_buttons = SoupStrainer("button", {"class": "button__full-width button__primary volunteerCalendar__button--recurring is-active"})
+soup = BeautifulSoup(req.content, 'lxml', parse_only=cal_buttons)
+cal_dates = soup.find_all("span", ["volunteerCalendar__date", "volunteerCalendar__count"])
+# print(cal_dates)
+# print()
 
-# Grab volunteer information
-date = todays_needs[0].get_text()
-shift_hours = todays_needs[1].get_text()
-num_volunteers = re.findall(r'\d+', todays_needs[2].get_text())
+# Grab volunteer availabilities for the current month from calendar
+date_index_list = []
+for i in range(0, len(cal_dates), 2):
+    if int(cal_dates[i+1].get_text()) > 0:
+        date_index_list.append(i)
 
-# Clean volunteer information
-date = date.strip()
-shift_hours = shift_hours.strip()
-num_volunteers = int(num_volunteers[0])
+# print(f"len(date_index_list): {len(date_index_list)}")
 
-print("Collected volunteer information:")
-print(f"date: {date}\nshift hours: {shift_hours}\nnum_volunteers: {num_volunteers}\n")
-
-# Check if there are volunteer spots for the day
-if num_volunteers > 0:
+# Send out alerts if there are volunteer opportunities for the month
+if len(date_index_list) > 0:
+    # Calculate total number of volunteer shifts
+    total_shifts = 0
+    for i in date_index_list:
+        total_shifts += int(cal_dates[i+1].get_text())
 
     # Load configuration and set variables
     config = yaml.safe_load(open("./config/configuration.yaml"))
@@ -41,13 +44,12 @@ if num_volunteers > 0:
     phone_book = config["phone_book"]
     random.shuffle(phone_book)
     message_body = f"Howdy!\n\n" \
-        f"This is an alert to let you that there are currently {num_volunteers} opening(s) " \
-        f"to volunteer at the Dallas County Vaccine Mega Center on {date}. The shift(s) will most likely last {shift_hours}.\n\n" \
+        f"This is an alert to let you that there is(are) currently {total_shifts} opening(s) " \
+        f"to volunteer at the Dallas County Vaccine Mega Center this month.\n\n" \
         f"If you are interested, please sign up at {URL}\n\n" \
         f"Please do not reply to this message. Good luck!"
     
     print("YAML configuration variables loaded")
-    print()
 
     # Create Twilio Client
     client = Client(account_sid, auth_token)
@@ -62,6 +64,16 @@ if num_volunteers > 0:
                 from_ = account_phone_number,
                 to = phone_number
             )
+    
+    # Print shift info
+    print(f"total_shifts: {total_shifts}")
+    curr_year = datetime.now().year
+    curr_month = datetime.now().month
+    for i in date_index_list:
+        print(f"Date: {curr_year}-{curr_month}-{cal_dates[i].get_text()}, Num of Volunteers Needed: {cal_dates[i+1].get_text()}")
+else:
+    print("No volunteer shifts available")
 
 end_time = time.perf_counter()
 print(f"Retrieved information and sent out alerts in {end_time - start_time:0.4f} seconds")
+print()
