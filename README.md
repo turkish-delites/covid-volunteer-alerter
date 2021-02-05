@@ -30,6 +30,7 @@ phone_book:
 ## Versions
 
 -   **v1.0:** Only scrapes the data available for today's date. Sends alerts out to all phone numbers collected in the phone book.
+-   **v2.0:** Scrapes all available volunteer opportunities for the remaining month.
     <br/><br/>
 
 ## License
